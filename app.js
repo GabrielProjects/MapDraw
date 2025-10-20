@@ -753,6 +753,18 @@ document.addEventListener('keydown', function(e) {
     map.panBy([panDistance, 0]);
     e.preventDefault();
   }
+  
+  // Zoom in with + or =
+  if (key === '+' || key === '=') {
+    map.zoomIn();
+    e.preventDefault();
+  }
+  
+  // Zoom out with -
+  if (key === '-') {
+    map.zoomOut();
+    e.preventDefault();
+  }
 });
 
 // --- HELP MODAL ---
