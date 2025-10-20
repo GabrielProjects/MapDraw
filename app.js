@@ -734,6 +734,25 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('help-btn').click();
     e.preventDefault();
   }
+  
+  // Map navigation with WASD and Arrow keys
+  const panDistance = 100; // pixels to pan
+  if (key === 'w' || key === 'arrowup') {
+    map.panBy([0, -panDistance]);
+    e.preventDefault();
+  }
+  if (key === 's' || key === 'arrowdown') {
+    map.panBy([0, panDistance]);
+    e.preventDefault();
+  }
+  if (key === 'a' || key === 'arrowleft') {
+    map.panBy([-panDistance, 0]);
+    e.preventDefault();
+  }
+  if (key === 'd' || key === 'arrowright') {
+    map.panBy([panDistance, 0]);
+    e.preventDefault();
+  }
 });
 
 // --- HELP MODAL ---
