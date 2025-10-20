@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>MapDraw 2.0 - Modern Map Drawing Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Draw on maps, add markers, and create custom map annotations">
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css"/>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- HEADER -->
+  <div class="app-header">
+    <div class="header-title">
+      <span class="header-icon">🗺️</span>
+      <span class="header-text">MapDraw <span class="version-badge">2.0</span></span>
+    </div>
+    <div class="header-actions">
+      <button class="header-btn" id="import-btn" title="Import GeoJSON (Ctrl+O)">
+        <span>📥</span>
+      </button>
+      <button class="header-btn" id="export-geojson-btn" title="Export as GeoJSON (Ctrl+S)">
+        <span>💾</span>
+      </button>
+      <button class="header-btn" id="export-image-btn" title="Export as PNG (Ctrl+P)">
+        <span>🖼️</span>
+      </button>
+      <button class="header-btn" id="help-btn" title="Keyboard Shortcuts (?)">
+        <span>❓</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- SEARCH BAR -->
+  <div class="map-search-bar-wrap">
+    <input id="map-search-input" type="text" placeholder="🔍 Search for a place or address..." autocomplete="off"/>
+    <ul id="map-search-results"></ul>
+  </div>
+
+  <!-- MAP -->
+  <div id="map"></div>
+  
+  <!-- FLOATING TOOLBAR -->
+  <div class="floating-toolbar">
+    <div class="toolbar-section">
+      <div class="section-label">Map Style</div>
+      <div class="map-style-switcher">
+        <button class="style-btn active" id="style-normal" title="Normal Map">🗺️</button>
+        <button class="style-btn" id="style-satellite" title="Satellite">🛰️</button>
+        <button class="style-btn" id="style-dark" title="Dark">🌙</button>
+      </div>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-section">
+      <div class="section-label">Color</div>
+      <div class="color-palette">
+      <div class="color-circle selected" data-color="#ff3232" style="background:#ff3232" title="Click again to change color">
+        <div class="color-circle-inner"></div>
+      </div>
+      <div class="color-circle" data-color="#3698ff" style="background:#3698ff" title="Click again to change color">
+        <div class="color-circle-inner"></div>
+      </div>
+      <div class="color-circle" data-color="#25ce55" style="background:#25ce55" title="Click again to change color">
+        <div class="color-circle-inner"></div>
+      </div>
+    </div>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-section">
+      <div class="section-label">Line Width</div>
+      <div class="width-slider-wrap">
+        <input type="range" id="width-slider" min="1" max="20" value="3" class="pen-width-slider" title="Pen width"/>
+        <span id="width-preview" class="width-preview-dot"></span>
+      </div>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-section">
+      <div class="section-label">Tools</div>
+      <div class="tool-buttons-grid">
+        <button class="tool-btn" id="marker-btn" title="Add Marker (M)">
+          <span class="tool-icon">📍</span>
+          <span class="tool-label">Marker</span>
+        </button>
+        <button class="tool-btn active" id="freehand-btn" title="Draw (D)">
+          <span class="tool-icon">✏️</span>
+          <span class="tool-label">Draw</span>
+        </button>
+        <button class="tool-btn" id="eraser-btn" title="Erase (E)">
+          <span class="tool-icon">🧹</span>
+          <span class="tool-label">Erase</span>
+        </button>
+      </div>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-section">
+      <div class="section-label">Actions</div>
+      <div class="tool-buttons-grid">
+        <button class="tool-btn" id="undo-btn" title="Undo (Ctrl+Z)">
+          <span class="tool-icon">↩️</span>
+          <span class="tool-label">Undo</span>
+        </button>
+        <button class="tool-btn" id="clear-btn" title="Clear All (Ctrl+Del)">
+          <span class="tool-icon">🗑️</span>
+          <span class="tool-label">Clear</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR PINPOINT -->
+  <div class="pinpoint-sidebar" id="pinpoint-sidebar" style="display:none;">
+    <b>Pinpoints:</b>
+    <div id="pinpoint-list"></div>
+  </div>
+
+  <!-- ERASER CIRCLE -->
+  <div id="eraser-circle"></div>
+  
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="status-icon">🎨</span>
+      <span id="status-tool">Draw Mode</span>
+    </div>
+    <div class="status-item">
+      <span class="status-icon">🖊️</span>
+      <span id="status-color" style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff3232;margin:0 4px;"></span>
+      <span id="status-width">Width: 3px</span>
+    </div>
+    <div class="status-item">
+      <span class="status-icon">📍</span>
+      <span id="status-pins">Pins: 0</span>
+    </div>
+    <div class="status-item">
+      <span class="status-icon">🖱️</span>
+      <span id="status-coords">--, --</span>
+    </div>
+  </div>
+
+  <!-- COLOR PICKER MODAL -->
+  <div id="color-picker-modal">
+    <div class="color-picker-backdrop"></div>
+    <div class="color-picker-popup">
+      <div class="color-picker-header">Choose Color</div>
+      <canvas id="color-wheel-canvas" width="200" height="200"></canvas>
+      <div class="color-picker-brightness">
+        <span class="brightness-label">🌑</span>
+        <input type="range" id="color-brightness-slider" min="0" max="100" value="100"/>
+        <span class="brightness-label">☀️</span>
+      </div>
+      <div class="color-picker-presets" id="color-presets"></div>
+      <div class="color-picker-footer">
+        <div id="color-picker-current" class="color-picker-current"></div>
+        <button class="color-picker-btn" id="color-picker-cancel">Cancel</button>
+        <button class="color-picker-btn color-picker-btn-main" id="color-picker-ok">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HELP MODAL -->
+  <div id="help-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⌨️ Keyboard Shortcuts</h2>
+        <button class="modal-close" id="help-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcut-grid">
+          <div class="shortcut-item">
+            <span class="shortcut-key">M</span>
+            <span class="shortcut-desc">Marker Tool</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">D</span>
+            <span class="shortcut-desc">Draw Tool</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">E</span>
+            <span class="shortcut-desc">Eraser Tool</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">Ctrl + Z</span>
+            <span class="shortcut-desc">Undo</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">Ctrl + S</span>
+            <span class="shortcut-desc">Export GeoJSON</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">Ctrl + O</span>
+            <span class="shortcut-desc">Import GeoJSON</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">Ctrl + P</span>
+            <span class="shortcut-desc">Export Image</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">Ctrl + Del</span>
+            <span class="shortcut-desc">Clear All</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">?</span>
+            <span class="shortcut-desc">Show This Help</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">1-3</span>
+            <span class="shortcut-desc">Select Color</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">Middle Click</span>
+            <span class="shortcut-desc">Pan Map</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">Scroll</span>
+            <span class="shortcut-desc">Zoom Map</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Hidden file input for import -->
+  <input type="file" id="import-file-input" accept=".geojson,.json" style="display:none;">
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- App scripts -->
+  <script src="colorpicker.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
