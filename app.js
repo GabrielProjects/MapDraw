@@ -37,17 +37,31 @@ function applyLoadedPalette(loaded) {
 function saveDrawingsToStorage() {
   let features = [];
   drawnItems.eachLayer(function(layer) {
-    let geo = layer.toGeoJSON();
-    if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-      geo.properties = geo.properties || {};
-      geo.properties.color = layer.options.color;
-      geo.properties.weight = layer.options.weight;
+    if (layer instanceof L.Circle) {
+      const center = layer.getLatLng();
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [center.lng, center.lat] },
+        properties: {
+          shape: "circle",
+          radius: layer.getRadius(),
+          color: layer.options.color,
+          weight: layer.options.weight
+        }
+      });
+    } else {
+      let geo = layer.toGeoJSON();
+      if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+        geo.properties = geo.properties || {};
+        geo.properties.color = layer.options.color;
+        geo.properties.weight = layer.options.weight;
+      }
+      if (layer instanceof L.Marker) {
+        geo.properties = geo.properties || {};
+        geo.properties.label = layer._customLabel || "";
+      }
+      features.push(geo);
     }
-    if (layer instanceof L.Marker) {
-      geo.properties = geo.properties || {};
-      geo.properties.label = layer._customLabel || "";
-    }
-    features.push(geo);
   });
   let geojson = {type: "FeatureCollection", features: features};
   localStorage.setItem(GEOJSON_STORAGE_KEY, JSON.stringify(geojson));
@@ -186,10 +200,27 @@ var eraserRadius = 24;
 var mouseDownEraser = false;
 var lastActiveTool = 'freehand';
 var pinLabels = [];
+// Temp state for new tools
+var circleCenter = null;
+var tempCircle = null;
+var lineStart = null;
+var tempLine = null;
+// Circle default radius settings
+var useDefaultCircleRadius = false;
+var defaultCircleRadiusMeters = 1000;
+var defaultRadiusUnit = 'm';
+
+function clearTempShapes() {
+  if (tempCircle) { map.removeLayer(tempCircle); tempCircle = null; }
+  circleCenter = null;
+  if (tempLine) { map.removeLayer(tempLine); tempLine = null; }
+  lineStart = null;
+}
 
 function setToolActive(tool) {
   document.querySelectorAll('.tool-btn').forEach(btn=>btn.classList.remove('active'));
   document.getElementById(tool + "-btn").classList.add('active');
+  clearTempShapes();
   drawType = tool;
   lastActiveTool = tool;
 }
@@ -208,6 +239,90 @@ document.getElementById('eraser-btn').onclick = function() {
   setToolActive('eraser');
   document.getElementById('eraser-circle').style.display = erasing ? 'block' : 'none';
 };
+
+// New: Line and Circle buttons
+document.getElementById('line-btn').onclick = function() {
+  setToolActive('line');
+  erasing = false; document.getElementById('eraser-circle').style.display = 'none';
+};
+
+function openCircleOptionsModal() {
+  var modal = document.getElementById('circle-options-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+    var valInput = document.getElementById('default-radius-value');
+    if (valInput) {
+      if (defaultCircleRadiusMeters >= 1000 && defaultCircleRadiusMeters % 1000 === 0) {
+        valInput.value = (defaultCircleRadiusMeters / 1000);
+        defaultRadiusUnit = 'km';
+      } else {
+        valInput.value = defaultCircleRadiusMeters;
+        defaultRadiusUnit = 'm';
+      }
+    }
+    // update unit buttons
+    var btns = document.querySelectorAll('.circle-unit-btn');
+    btns.forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-unit') === defaultRadiusUnit); });
+    var status = document.getElementById('default-radius-status');
+    if (status) status.textContent = useDefaultCircleRadius ? 'Enabled' : 'Disabled';
+  }
+}
+
+document.getElementById('circle-btn').onclick = function() {
+  if (drawType === 'circle') {
+    openCircleOptionsModal();
+    return;
+  }
+  setToolActive('circle');
+  erasing = false; document.getElementById('eraser-circle').style.display = 'none';
+};
+// Toolbar toggle button
+var circleDefaultToggleBtn = document.getElementById('circle-default-toggle-btn');
+if (circleDefaultToggleBtn) {
+  circleDefaultToggleBtn.onclick = function() {
+    useDefaultCircleRadius = !useDefaultCircleRadius;
+    this.classList.toggle('active', useDefaultCircleRadius);
+    var status = document.getElementById('default-radius-status');
+    if (status) status.textContent = useDefaultCircleRadius ? 'Enabled' : 'Disabled';
+  };
+}
+// Modal controls
+var circleOptionsClose = document.getElementById('circle-options-close');
+if (circleOptionsClose) {
+  circleOptionsClose.onclick = function() {
+    document.getElementById('circle-options-modal').style.display = 'none';
+  };
+}
+var defaultRadiusApply = document.getElementById('default-radius-apply');
+if (defaultRadiusApply) {
+  defaultRadiusApply.onclick = function() {
+    var val = parseFloat(document.getElementById('default-radius-value').value);
+    if (!isNaN(val) && val >= 0) {
+      defaultCircleRadiusMeters = defaultRadiusUnit === 'km' ? (val * 1000) : val;
+    }
+    document.getElementById('circle-options-modal').style.display = 'none';
+  };
+}
+var defaultRadiusToggle = document.getElementById('default-radius-toggle');
+if (defaultRadiusToggle) {
+  defaultRadiusToggle.onclick = function() {
+    useDefaultCircleRadius = !useDefaultCircleRadius;
+    var btn = document.getElementById('circle-default-toggle-btn');
+    if (btn) btn.classList.toggle('active', useDefaultCircleRadius);
+    var status = document.getElementById('default-radius-status');
+    if (status) status.textContent = useDefaultCircleRadius ? 'Enabled' : 'Disabled';
+  };
+}
+
+// Unit buttons
+var unitButtons = document.querySelectorAll('.circle-unit-btn');
+unitButtons.forEach(function(btn){
+  btn.onclick = function() {
+    var unit = this.getAttribute('data-unit');
+    defaultRadiusUnit = unit === 'km' ? 'km' : 'm';
+    unitButtons.forEach(function(b){ b.classList.toggle('active', b === btn); });
+  };
+});
 
 // --- Freehand Drawing ---
 var isFreehand = false;
@@ -234,6 +349,29 @@ map.on('mousemove', function(e) {
   if (drawType === 'freehand' && mouseDown && freehandPolyline) {
     freehandPoints.push(e.latlng);
     freehandPolyline.setLatLngs(freehandPoints);
+  }
+  // Preview for line tool
+  if (drawType === 'line' && lineStart) {
+    const pts = [lineStart, e.latlng];
+    if (!tempLine) {
+      tempLine = L.polyline(pts, {color: drawColor, weight: drawWeight, dashArray: '4,4', smoothFactor: 1}).addTo(map);
+    } else {
+      tempLine.setLatLngs(pts);
+      tempLine.setStyle({color: drawColor, weight: drawWeight});
+    }
+  }
+  // Preview for circle tool
+  if (drawType === 'circle' && circleCenter) {
+    // If default radius is enabled, no need to update with mouse move — keep the preview at default radius
+    let r = useDefaultCircleRadius ? defaultCircleRadiusMeters : map.distance(circleCenter, e.latlng);
+    if (r < 0) r = 0;
+    if (!tempCircle) {
+      tempCircle = L.circle(circleCenter, {radius: r, color: drawColor, weight: drawWeight, opacity: 0.7});
+      tempCircle.addTo(map);
+    } else {
+      tempCircle.setRadius(r);
+      tempCircle.setStyle({color: drawColor, weight: drawWeight});
+    }
   }
   if (erasing) {
     var p = map.latLngToContainerPoint(e.latlng);
@@ -271,6 +409,37 @@ function doEraser(e) {
       if (dist < eraserRadius) { drawnItems.removeLayer(layer); changed = true; }
     } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
       if (eraseSegmentFromPolyline(layer, e.latlng, eraserRadius)) changed = true;
+    } else if (layer instanceof L.Circle) {
+      // Convert eraser pixel radius to meters at the current mouse position
+      var pCenter = map.latLngToContainerPoint(e.latlng);
+      var pEdge = L.point(pCenter.x + eraserRadius, pCenter.y);
+      var latlngEdge = map.containerPointToLatLng(pEdge);
+      var eraserRadiusMeters = map.distance(e.latlng, latlngEdge);
+      // Distance between circle center and eraser center (meters)
+      var circleCenter = layer.getLatLng();
+      var distCenters = map.distance(circleCenter, e.latlng);
+      // If eraser overlaps circle stroke/area, convert circle to a polyline approximation and erase only the hit arc(s)
+      if (distCenters <= layer.getRadius() + eraserRadiusMeters) {
+        var cPx = map.latLngToContainerPoint(circleCenter);
+        // meters per pixel around the circle center
+        var mpp = map.distance(circleCenter, map.containerPointToLatLng(L.point(cPx.x + 1, cPx.y)));
+        var radiusPx = layer.getRadius() / (mpp || 1);
+        var steps = 96; // smooth circle approximation
+        var pts = [];
+        for (var k=0; k<=steps; k++) {
+          var theta = (k/steps) * Math.PI * 2;
+          var px = L.point(cPx.x + radiusPx * Math.cos(theta), cPx.y + radiusPx * Math.sin(theta));
+          pts.push(map.containerPointToLatLng(px));
+        }
+        // Replace circle with an approximated stroke polyline
+        var color = (layer.options && layer.options.color) || drawColor;
+        var weight = (layer.options && layer.options.weight) || drawWeight;
+        drawnItems.removeLayer(layer);
+        var strokePoly = L.polyline(pts, {color: color, weight: weight, smoothFactor: 1});
+        drawnItems.addLayer(strokePoly);
+        // Apply eraser to the new stroke polyline
+        if (eraseSegmentFromPolyline(strokePoly, e.latlng, eraserRadius)) changed = true; else changed = true;
+      }
     }
   });
   if (changed) updatePinpointSidebar();
@@ -294,32 +463,61 @@ function eraseSegmentFromPolyline(layer, clickLatLng, radiusPx) {
       var d1 = p1.distanceTo(center);
       var d2 = p2.distanceTo(center);
 
-      // If both ends are outside the eraser, add normally
+      // Check for intersections regardless of endpoint positions
+      var intersections = circleSegmentIntersections(center, radiusPx, p1, p2);
+      // Sort intersections by parameter t along the segment
+      if (intersections && intersections.length > 1) {
+        intersections.sort(function(a,b){ return a.t - b.t; });
+      }
+
       if (d1 >= radiusPx && d2 >= radiusPx) {
-        if (seg.length == 0) seg.push(p1lat);
-        seg.push(p2lat);
+        // Both endpoints outside; if segment crosses the eraser, split and remove middle
+        if (intersections && intersections.length === 2) {
+          var lat1 = map.containerPointToLatLng(intersections[0].point);
+          var lat2 = map.containerPointToLatLng(intersections[1].point);
+          if (seg.length == 0) seg.push(p1lat);
+          seg.push(lat1);
+          newLatlngsArr.push(seg.slice()); seg = [];
+          seg.push(lat2);
+          seg.push(p2lat);
+          changed = true;
+        } else {
+          // No crossing: keep as is
+          if (seg.length == 0) seg.push(p1lat);
+          seg.push(p2lat);
+        }
       } else if (d1 < radiusPx && d2 < radiusPx) {
         // both points are inside the eraser, drop this segment (erase it)
         if (seg.length) { newLatlngsArr.push(seg.slice()); seg = []; }
         changed = true;
       } else {
-        // One point inside, one outside: split at intersection
-        var intersection = circleSegmentIntersection(center, radiusPx, p1, p2);
-        if (intersection) {
-          var lat = map.containerPointToLatLng(intersection);
+        // One point inside, one outside: split at intersection(s)
+        if (intersections && intersections.length > 0) {
+          // Ensure ordered by t
+          intersections.sort(function(a,b){ return a.t - b.t; });
+          var latI = map.containerPointToLatLng(intersections[0].point);
           if (d1 < radiusPx && d2 >= radiusPx) {
-            // leaving the eraser, start new segment at intersection
+            // leaving the eraser: start new segment at intersection and continue to p2
             if (seg.length) { newLatlngsArr.push(seg.slice()); seg = []; }
-            seg.push(lat);
+            seg.push(latI);
             seg.push(p2lat);
           } else if (d1 >= radiusPx && d2 < radiusPx) {
-            // entering eraser, add up to intersection and end segment
+            // entering eraser: add up to intersection and end segment
             if (seg.length == 0) seg.push(p1lat);
-            seg.push(lat);
+            seg.push(latI);
             newLatlngsArr.push(seg.slice());
             seg = [];
           }
           changed = true;
+        } else {
+          // Fallback: if numerical issues, drop segment when one endpoint is inside
+          if (d1 < radiusPx || d2 < radiusPx) {
+            if (seg.length) { newLatlngsArr.push(seg.slice()); seg = []; }
+            changed = true;
+          } else {
+            if (seg.length == 0) seg.push(p1lat);
+            seg.push(p2lat);
+          }
         }
       }
     }
@@ -341,7 +539,7 @@ function eraseSegmentFromPolyline(layer, clickLatLng, radiusPx) {
 }
 
 // Find intersection of line segment and circle (eraser)
-function circleSegmentIntersection(center, radius, p1, p2) {
+function circleSegmentIntersections(center, radius, p1, p2) {
   var dx = p2.x - p1.x, dy = p2.y - p1.y;
   var fx = p1.x - center.x, fy = p1.y - center.y;
   var a = dx*dx + dy*dy;
@@ -353,12 +551,10 @@ function circleSegmentIntersection(center, radius, p1, p2) {
 
   var t1 = (-b - discriminant) / (2*a);
   var t2 = (-b + discriminant) / (2*a);
-
-  var points = [];
-  if (t1 >= 0 && t1 <= 1) points.push({x: p1.x + t1*dx, y: p1.y + t1*dy});
-  if (t2 >= 0 && t2 <= 1) points.push({x: p1.x + t2*dx, y: p1.y + t2*dy});
-  if (points.length == 0) return null;
-  return points[0];
+  var out = [];
+  if (t1 >= 0 && t1 <= 1) out.push({ point: {x: p1.x + t1*dx, y: p1.y + t1*dy}, t: t1 });
+  if (t2 >= 0 && t2 <= 1) out.push({ point: {x: p1.x + t2*dx, y: p1.y + t2*dy}, t: t2 });
+  return out.length ? out : null;
 }
 
 // --- Marker tool, supports renaming ---
@@ -371,6 +567,40 @@ map.on('click', function(e) {
     pinLabels.push({marker: m, label: m._customLabel});
     updatePinpointSidebar();
     saveHistory();
+  }
+  // Line tool: first click sets start, second click finalizes
+  else if (drawType === 'line') {
+    if (!lineStart) {
+      lineStart = e.latlng;
+    } else {
+      const finalLine = L.polyline([lineStart, e.latlng], {color: drawColor, weight: drawWeight, smoothFactor: 1});
+      drawnItems.addLayer(finalLine);
+      if (tempLine) { map.removeLayer(tempLine); tempLine = null; }
+      lineStart = null;
+      saveHistory();
+    }
+  }
+  // Circle tool: first click sets center, second click sets radius (or single click if default radius enabled)
+  else if (drawType === 'circle') {
+    if (!circleCenter) {
+      if (useDefaultCircleRadius) {
+        const radius = Math.max(0, defaultCircleRadiusMeters);
+        const finalCircle = L.circle(e.latlng, {radius: radius, color: drawColor, weight: drawWeight});
+        drawnItems.addLayer(finalCircle);
+        if (tempCircle) { map.removeLayer(tempCircle); tempCircle = null; }
+        circleCenter = null;
+        saveHistory();
+      } else {
+        circleCenter = e.latlng;
+      }
+    } else {
+      const radius = Math.max(0, useDefaultCircleRadius ? defaultCircleRadiusMeters : map.distance(circleCenter, e.latlng));
+      const finalCircle = L.circle(circleCenter, {radius: radius, color: drawColor, weight: drawWeight});
+      drawnItems.addLayer(finalCircle);
+      if (tempCircle) { map.removeLayer(tempCircle); tempCircle = null; }
+      circleCenter = null;
+      saveHistory();
+    }
   }
 });
 
@@ -488,17 +718,32 @@ var drawHistory = [];
 function saveHistory() {
   let features = [];
   drawnItems.eachLayer(function(layer) {
-    let geo = layer.toGeoJSON();
-    if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-      geo.properties = geo.properties || {};
-      geo.properties.color = layer.options.color;
-      geo.properties.weight = layer.options.weight;
+    if (layer instanceof L.Circle) {
+      const center = layer.getLatLng();
+      const feat = {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [center.lng, center.lat] },
+        properties: {
+          shape: "circle",
+          radius: layer.getRadius(),
+          color: layer.options.color,
+          weight: layer.options.weight
+        }
+      };
+      features.push(feat);
+    } else {
+      let geo = layer.toGeoJSON();
+      if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+        geo.properties = geo.properties || {};
+        geo.properties.color = layer.options.color;
+        geo.properties.weight = layer.options.weight;
+      }
+      if (layer instanceof L.Marker) {
+        geo.properties = geo.properties || {};
+        geo.properties.label = layer._customLabel || "";
+      }
+      features.push(geo);
     }
-    if (layer instanceof L.Marker) {
-      geo.properties = geo.properties || {};
-      geo.properties.label = layer._customLabel || "";
-    }
-    features.push(geo);
   });
   let geojson = {type: "FeatureCollection", features: features};
   drawHistory.push(JSON.stringify(geojson));
@@ -513,17 +758,25 @@ document.getElementById('undo-btn').onclick = function() {
   pinLabels = [];
   L.geoJSON(last, {
     pointToLayer: function(feature, latlng) {
-      let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
-      if (feature.properties && feature.properties.label) {
-        m._customLabel = feature.properties.label;
-        if (m.bindPopup) m.bindPopup(m._customLabel);
-        pinLabels.push({marker: m, label: m._customLabel});
+      if (feature.properties && feature.properties.shape === 'circle' && feature.properties.radius != null) {
+        return L.circle(latlng, {
+          radius: feature.properties.radius,
+          color: feature.properties.color || drawColor,
+          weight: feature.properties.weight || drawWeight
+        });
+      } else {
+        let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
+        if (feature.properties && feature.properties.label) {
+          m._customLabel = feature.properties.label;
+          if (m.bindPopup) m.bindPopup(m._customLabel);
+          pinLabels.push({marker: m, label: m._customLabel});
+        }
+        return m;
       }
-      return m;
     },
     style: function(feature) {
       let s = {};
-      if (feature.properties && feature.geometry.type === "LineString") {
+      if (feature.properties && (feature.geometry.type === "LineString" || feature.geometry.type === "Polygon")) {
         if (feature.properties.color) s.color = feature.properties.color;
         if (feature.properties.weight) s.weight = feature.properties.weight;
       }
@@ -554,7 +807,9 @@ function updateStatusBar() {
   const toolNames = {
     'freehand': 'Draw Mode',
     'marker': 'Marker Mode',
-    'eraser': 'Eraser Mode'
+    'eraser': 'Eraser Mode',
+    'line': 'Line Mode',
+    'circle': 'Circle Mode'
   };
   document.getElementById('status-tool').textContent = erasing ? 'Eraser Mode' : (toolNames[drawType] || 'Draw Mode');
   document.getElementById('status-color').style.background = drawColor;
@@ -596,17 +851,31 @@ colorPalette.forEach(circle => {
 document.getElementById('export-geojson-btn').onclick = function() {
   let features = [];
   drawnItems.eachLayer(function(layer) {
-    let geo = layer.toGeoJSON();
-    if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-      geo.properties = geo.properties || {};
-      geo.properties.color = layer.options.color;
-      geo.properties.weight = layer.options.weight;
+    if (layer instanceof L.Circle) {
+      const center = layer.getLatLng();
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [center.lng, center.lat] },
+        properties: {
+          shape: "circle",
+          radius: layer.getRadius(),
+          color: layer.options.color,
+          weight: layer.options.weight
+        }
+      });
+    } else {
+      let geo = layer.toGeoJSON();
+      if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+        geo.properties = geo.properties || {};
+        geo.properties.color = layer.options.color;
+        geo.properties.weight = layer.options.weight;
+      }
+      if (layer instanceof L.Marker) {
+        geo.properties = geo.properties || {};
+        geo.properties.label = layer._customLabel || "";
+      }
+      features.push(geo);
     }
-    if (layer instanceof L.Marker) {
-      geo.properties = geo.properties || {};
-      geo.properties.label = layer._customLabel || "";
-    }
-    features.push(geo);
   });
   let geojson = {type: "FeatureCollection", features: features};
   const blob = new Blob([JSON.stringify(geojson, null, 2)], {type: 'application/json'});
@@ -634,17 +903,25 @@ document.getElementById('import-file-input').onchange = function(e) {
       pinLabels = [];
       L.geoJSON(geojson, {
         pointToLayer: function(feature, latlng) {
-          let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
-          if (feature.properties && feature.properties.label) {
-            m._customLabel = feature.properties.label;
-            if (m.bindPopup) m.bindPopup(m._customLabel);
-            pinLabels.push({marker: m, label: m._customLabel});
+          if (feature.properties && feature.properties.shape === 'circle' && feature.properties.radius != null) {
+            return L.circle(latlng, {
+              radius: feature.properties.radius,
+              color: feature.properties.color || drawColor,
+              weight: feature.properties.weight || drawWeight
+            });
+          } else {
+            let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
+            if (feature.properties && feature.properties.label) {
+              m._customLabel = feature.properties.label;
+              if (m.bindPopup) m.bindPopup(m._customLabel);
+              pinLabels.push({marker: m, label: m._customLabel});
+            }
+            return m;
           }
-          return m;
         },
         style: function(feature) {
           let s = {};
-          if (feature.properties && feature.geometry.type === "LineString") {
+          if (feature.properties && (feature.geometry.type === "LineString" || feature.geometry.type === "Polygon")) {
             if (feature.properties.color) s.color = feature.properties.color;
             if (feature.properties.weight) s.weight = feature.properties.weight;
           }
@@ -685,6 +962,12 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
   } else if (key === 'e') {
     document.getElementById('eraser-btn').click();
+    e.preventDefault();
+  } else if (key === 'l') {
+    document.getElementById('line-btn').click();
+    e.preventDefault();
+  } else if (key === 'c') {
+    document.getElementById('circle-btn').click();
     e.preventDefault();
   }
   
@@ -808,17 +1091,25 @@ document.addEventListener("DOMContentLoaded", function() {
         pinLabels = [];
         L.geoJSON(geojson, {
           pointToLayer: function(feature, latlng) {
-            let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
-            if (feature.properties && feature.properties.label) {
-              m._customLabel = feature.properties.label;
-              if (m.bindPopup) m.bindPopup(m._customLabel);
-              pinLabels.push({marker: m, label: m._customLabel});
+            if (feature.properties && feature.properties.shape === 'circle' && feature.properties.radius != null) {
+              return L.circle(latlng, {
+                radius: feature.properties.radius,
+                color: feature.properties.color || drawColor,
+                weight: feature.properties.weight || drawWeight
+              });
+            } else {
+              let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
+              if (feature.properties && feature.properties.label) {
+                m._customLabel = feature.properties.label;
+                if (m.bindPopup) m.bindPopup(m._customLabel);
+                pinLabels.push({marker: m, label: m._customLabel});
+              }
+              return m;
             }
-            return m;
           },
           style: function(feature) {
             let s = {};
-            if (feature.properties && feature.geometry.type === "LineString") {
+            if (feature.properties && (feature.geometry.type === "LineString" || feature.geometry.type === "Polygon")) {
               if (feature.properties.color) s.color = feature.properties.color;
               if (feature.properties.weight) s.weight = feature.properties.weight;
             }
@@ -841,17 +1132,25 @@ document.addEventListener("DOMContentLoaded", function() {
       pinLabels = [];
       L.geoJSON(geojson, {
         pointToLayer: function(feature, latlng) {
-          let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
-          if (feature.properties && feature.properties.label) {
-            m._customLabel = feature.properties.label;
-            if (m.bindPopup) m.bindPopup(m._customLabel);
-            pinLabels.push({marker: m, label: m._customLabel});
+          if (feature.properties && feature.properties.shape === 'circle' && feature.properties.radius != null) {
+            return L.circle(latlng, {
+              radius: feature.properties.radius,
+              color: feature.properties.color || drawColor,
+              weight: feature.properties.weight || drawWeight
+            });
+          } else {
+            let m = L.marker(latlng, {icon: customPinIcon, riseOnHover: true});
+            if (feature.properties && feature.properties.label) {
+              m._customLabel = feature.properties.label;
+              if (m.bindPopup) m.bindPopup(m._customLabel);
+              pinLabels.push({marker: m, label: m._customLabel});
+            }
+            return m;
           }
-          return m;
         },
         style: function(feature) {
           let s = {};
-          if (feature.properties && feature.geometry.type === "LineString") {
+          if (feature.properties && (feature.geometry.type === "LineString" || feature.geometry.type === "Polygon")) {
             if (feature.properties.color) s.color = feature.properties.color;
             if (feature.properties.weight) s.weight = feature.properties.weight;
           }

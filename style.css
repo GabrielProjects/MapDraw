@@ -1,28 +1,3 @@
-/* ===== LEAFLET POPUP CLOSE BUTTON FIX ===== */
-.leaflet-popup-close-button {
-  background: var(--danger-color) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 50% !important;
-  width: 28px !important;
-  height: 28px !important;
-  font-size: 20px !important;
-  line-height: 28px !important;
-  text-align: center !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  box-shadow: var(--shadow-sm) !important;
-  opacity: 1 !important;
-  padding: 0 !important;
-  margin: 6px 6px 0 0 !important;
-  transition: background var(--transition-fast), transform var(--transition-fast) !important;
-}
-.leaflet-popup-close-button:hover {
-  background: #dc2626 !important;
-  color: #fff !important;
-  transform: scale(1.1) !important;
-}
 /* ===== CSS VARIABLES ===== */
 :root {
   --primary-color: #4f46e5;
@@ -72,6 +47,32 @@ html, body {
   height: 100vh;
   margin: 0;
   padding: 0;
+}
+
+/* ===== LEAFLET POPUP CLOSE BUTTON FIX ===== */
+.leaflet-popup-close-button {
+  background: var(--danger-color) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 20px !important;
+  line-height: 28px !important;
+  text-align: center !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: var(--shadow-sm) !important;
+  opacity: 1 !important;
+  padding: 0 !important;
+  margin: 6px 6px 0 0 !important;
+  transition: background var(--transition-fast), transform var(--transition-fast) !important;
+}
+.leaflet-popup-close-button:hover {
+  background: #dc2626 !important;
+  color: #fff !important;
+  transform: scale(1.1) !important;
 }
 
 .leaflet-control-container { display: none !important; }
@@ -154,6 +155,20 @@ html, body {
 }
 
 .header-btn:active {
+  transform: translateY(0);
+}
+
+.header-btn.primary {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--shadow-md);
+}
+.header-btn.primary:hover {
+  background: linear-gradient(135deg, var(--primary-hover), var(--secondary-color));
+  transform: translateY(-2px);
+}
+.header-btn.primary:active {
   transform: translateY(0);
 }
 
@@ -706,6 +721,8 @@ html, body {
   max-height: 80vh;
   overflow-y: auto;
   animation: scaleIn 0.3s var(--transition-base);
+  padding: 22px 24px;
+  border: 1px solid var(--border-color);
 }
 
 @keyframes scaleIn {
@@ -717,7 +734,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 28px;
+  padding: 12px 0 16px 0;
   border-bottom: 2px solid var(--border-color);
 }
 
@@ -743,30 +760,129 @@ html, body {
   color: var(--text-secondary);
 }
 
-.modal-close:hover {
-  background: var(--danger-color);
-  color: white;
-  transform: rotate(90deg);
+/* ===== Circle Options Modal ===== */
+.circle-card {
+  background: linear-gradient(140deg, rgba(79,70,229,0.08), rgba(6,182,212,0.08)), white;
+  border: 1px solid rgba(79,70,229,0.18);
+  box-shadow: 0 24px 60px -24px rgba(79,70,229,0.55);
 }
-
-.modal-body {
-  padding: 24px 28px;
-}
-
-.shortcut-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-}
-
-.shortcut-item {
+.circle-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 12px;
+}
+.circle-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--text-primary);
+}
+.circle-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.circle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.circle-panel {
+  background: rgba(255,255,255,0.9);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.circle-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  color: var(--primary-color);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.circle-sub {
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.circle-label {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.circle-input-wrap {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.circle-input {
+  padding: 14px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: 15px;
+  min-width: 220px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  flex: 1;
+  box-shadow: var(--shadow-lg);
+  background: white;
+  transition: all var(--transition-fast);
+}
+.circle-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-xl), 0 0 0 4px rgba(79,70,229,0.12);
+  background: #fff;
+}
+.circle-unit-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.circle-unit-btn {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-color);
+  background: white;
+  color: var(--text-primary);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+  min-width: 110px;
+  text-align: center;
+}
+.circle-unit-btn.active {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--shadow-md);
+}
+.circle-unit-btn:hover {
+  transform: translateY(-2px);
+  background: var(--light-bg);
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-md);
+}
+.circle-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: center;
+  white-space: nowrap;
+}
+.circle-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
   background: var(--light-bg);
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-weight: 700;
 }
 
 .shortcut-item:hover {

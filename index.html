@@ -91,6 +91,18 @@
           <span class="tool-icon">✏️</span>
           <span class="tool-label">Draw</span>
         </button>
+        <button class="tool-btn" id="line-btn" title="Line (L)">
+          <span class="tool-icon">📏</span>
+          <span class="tool-label">Line</span>
+        </button>
+        <button class="tool-btn" id="circle-btn" title="Circle (C)">
+          <span class="tool-icon">⭕</span>
+          <span class="tool-label">Circle</span>
+        </button>
+        <button class="tool-btn" id="circle-default-toggle-btn" title="Toggle Default Radius (dbl-click Circle to set)">
+          <span class="tool-icon">🎯</span>
+          <span class="tool-label">Default Radius</span>
+        </button>
         <button class="tool-btn" id="eraser-btn" title="Erase (E)">
           <span class="tool-icon">🧹</span>
           <span class="tool-label">Erase</span>
@@ -181,6 +193,14 @@
             <span class="shortcut-desc">Draw Tool</span>
           </div>
           <div class="shortcut-item">
+            <span class="shortcut-key">L</span>
+            <span class="shortcut-desc">Line Tool</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-key">C</span>
+            <span class="shortcut-desc">Circle Tool</span>
+          </div>
+          <div class="shortcut-item">
             <span class="shortcut-key">E</span>
             <span class="shortcut-desc">Eraser Tool</span>
           </div>
@@ -227,6 +247,42 @@
           <div class="shortcut-item">
             <span class="shortcut-key">Scroll</span>
             <span class="shortcut-desc">Zoom Map</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CIRCLE OPTIONS MODAL -->
+  <div id="circle-options-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content circle-card">
+      <div class="modal-header circle-header">
+        <div>
+          <div class="circle-eyebrow">Drawing • Circles</div>
+          <h2>Default Radius</h2>
+          <p class="circle-sub">Imposta un raggio rapido per i tuoi cerchi.</p>
+        </div>
+        <button class="modal-close" id="circle-options-close">&times;</button>
+      </div>
+      <div class="modal-body circle-modal-body">
+        <div class="circle-grid">
+          <div class="circle-panel">
+            <div class="circle-label">Valore</div>
+            <div class="circle-input-wrap">
+              <input id="default-radius-value" class="circle-input" type="number" min="0" step="1" value="1000"/>
+              <div class="circle-unit-group" id="circle-unit-toggle">
+                <button class="circle-unit-btn active" data-unit="m">Metri</button>
+                <button class="circle-unit-btn" data-unit="km">Kilometri</button>
+              </div>
+            </div>
+          </div>
+          <div class="circle-panel">
+            <div class="circle-label">Stato predefinito</div>
+            <div class="circle-actions">
+              <button class="header-btn primary" id="default-radius-apply" title="Apply and Close">Applica</button>
+              <button class="header-btn" id="default-radius-toggle" title="Enable/Disable Default Radius">Toggle Default</button>
+              <span id="default-radius-status" class="circle-status">Disabled</span>
+            </div>
           </div>
         </div>
       </div>
